@@ -38,9 +38,11 @@ import scipy
 # my files
 #import news_preprocess
 
-torch.manual_seed(42)
-torch.cuda.manual_seed(42)
-np.random.seed(42)
+RS=42
+
+torch.manual_seed(RS)
+torch.cuda.manual_seed(RS)
+np.random.seed(RS)
 
 #%% read hphyperparameters 
 # file_name = '/home/kaan/Downloads/1-ttc3600.xlsx'
