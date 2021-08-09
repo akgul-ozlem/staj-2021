@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
+
+##NN-layer changes
+## Seed arrangements
+#Scaler removal  doesn't work that way
+#val loss  DONE
+
 """
 Created on Wed Aug  4 11:02:15 2021
 
@@ -31,6 +38,10 @@ import scipy
 # my files
 #import news_preprocess
 
+torch.manual_seed(42)
+torch.cuda.manual_seed(42)
+np.random.seed(42)
+
 #%% read hphyperparameters 
 file_name = '/home/kaan/Downloads/1-ttc3600.xlsx'
 page = 'cleaned'
@@ -44,11 +55,22 @@ useStopwords =     False
 useLemmatize =     False
 
 #%% parameyer
-NO_EPOCHS = 75
+NO_EPOCHS = 100
 LEARNING_RATE = 0.01
 MOMENTUM = 0.9
+BATCH_SIZE =1440 #720
+WEIGHT_DECAY = 0.01
+DROPOUT1 = 0.5
+DROPOUT2 =0.5
+DROPOUT3 =0.3
 
-
+if torch.cuda.is_available():
+    device = torch.device("cuda")
+    print(f"There are {torch.cuda.device_count()} GPU(s) available.")
+    print('Device name:', torch.cuda.get_device_name(0))
+else: 
+    print("No GPU available, using the CPU instead.")
+    device = torch.device("cpu")
 
 
 
@@ -75,10 +97,10 @@ x_test = vectorizer.transform(test_news)                    #tranform uses the v
 #print(vectorizer.get_feature_names())                       #print the learned vocabulary
 
 
-scaler1 = StandardScaler(with_mean=False).fit(x_train)      #Scaling train dataset
+scaler1 = StandardScaler(with_mean=0).fit(x_train)      #Scaling train dataset
 x_train_scaled = scaler1.transform(x_train)
 
-scaler2 = StandardScaler(with_mean=False).fit(x_test)       #Scaling test dataset
+scaler2 = StandardScaler(with_mean=0).fit(x_test)       #Scaling test dataset
 x_test_scaled = scaler2.transform(x_test)
 
 x_train = torch.tensor(scipy.sparse.csr_matrix.todense(x_train_scaled)).float()  #returns the dense representation of the sparse matrix x_train_scaled and converts it to a tensor
@@ -109,8 +131,8 @@ while k < x_test.shape[0]:
     k=k+1
 
 
-train_dl= DataLoader(training_tuples,batch_size=2880,shuffle=False)
-test_dl = DataLoader(testing_tuples, batch_size =720, shuffle = False)
+train_dl= DataLoader(training_tuples,batch_size=BATCH_SIZE,shuffle=True)
+test_dl = DataLoader(testing_tuples, batch_size =720, shuffle = True)
 
 print(x_train.shape[1])
 
@@ -121,16 +143,64 @@ train_losses = []
 test_losses = []
 test_accuracies = []
 val_outputs= []
+f1_score_list = []
 
 
-#model = nn. Sequential(nn.Linear(x_train.shape[1],data['class'].nunique()),nn.ReLU(),nn.Dropout(0.5),nn.Softmax(dim=1))
-model = nn. Sequential(nn.Linear(x_train.shape[1],64),nn.ReLU(),nn.Dropout(0.1),nn.Linear(64,data['class'].nunique()),nn.ReLU(),nn.Dropout(0.2),nn.Softmax(dim=1))
+model = nn. Sequential(nn.Linear(x_train.shape[1],data['class'].nunique()),nn.ReLU(),nn.Dropout(0.5),nn.Softmax(dim=1))
+criterion = nn.CrossEntropyLoss()            
+
+'''
+model = nn. Sequential(nn.Linear(x_train.shape[1],2048),
+                       nn.BatchNorm1d(2048),
+                       nn.ReLU(),
+                       #nn.Dropout(DROPOUT1),
+                       nn.Linear(2048,256),
+                       nn.BatchNorm1d(256),
+                       nn.ReLU(),
+                       #nn.Dropout(0.5),
+                       nn.Linear(256,64),
+                       nn.BatchNorm1d(64),
+                       nn.ReLU(),
+                       #nn.Dropout(DROPOUT2),
+                       nn.Linear(64,data['class'].nunique()),
+                       nn.ReLU(),nn.Dropout(DROPOUT3),
+                       nn.Softmax(dim=1))
+criterion = nn.CrossEntropyLoss()            
+
+'''
+'''
+model = nn. Sequential(nn.Linear(x_train.shape[1],4096),
+                       nn.BatchNorm1d(4096),
+                       nn.ReLU(),
+                       nn.Dropout(DROPOUT1),                    
+                       nn.Linear(4096,64),
+                       nn.BatchNorm1d(64),
+                       nn.ReLU(),
+                       nn.Dropout(DROPOUT2),
+                       nn.Linear(64,data['class'].nunique()),
+                       nn.ReLU(),nn.Dropout(DROPOUT3),
+                       nn.Softmax(dim=1))
 criterion = nn.CrossEntropyLoss()
+
+'''
+'''
+model = nn. Sequential(nn.Linear(x_train.shape[1],1024),
+                       nn.BatchNorm1d(1024),
+                       nn.ReLU(),
+                       nn.Dropout(DROPOUT1),                    
+
+                       nn.Linear(1024,data['class'].nunique()),
+                       nn.ReLU(),nn.Dropout(DROPOUT3),
+                       nn.Softmax(dim=1))
+criterion = nn.CrossEntropyLoss()
+'''
+
 
 def train_model(model,train_dl,epochs):
     model.train()
     
     optimizer= optim.SGD(model.parameters(),lr=LEARNING_RATE,momentum=MOMENTUM)
+    #optimizer = optim.Adam(model.parameters(),lr = LEARNING_RATE,weight_decay=WEIGHT_DECAY)
     for epoch in range(epochs):
         optimizer.zero_grad()
 
@@ -142,7 +212,29 @@ def train_model(model,train_dl,epochs):
             train_loss = loss.item()
             train_losses.append(train_loss)
             optimizer.step()
-        print(f"Epoch: {epoch+1}/{epochs}..", f"Training loss: {train_loss:.3f}")
+        
+            validation_f1_score,val_loss = evaluate_model(model,test_dl)
+            f1_score_list.append(validation_f1_score)
+            test_losses.append(val_loss)
+            print(f"Epoch: {epoch+1}/{epochs}..", f"Training loss: {train_loss:.3f}", f"Validation loss: {val_loss:.3f} " , f"Validation F1 Score: {validation_f1_score:.3f}")
+    
+    plt.figure(figsize=(12,5))
+    plt.subplot(121)
+    plt.xlabel('epochs')
+    plt.ylabel('loss')
+    plt.plot(train_losses,label='Training loss')
+    plt.plot(test_losses, label ='Validation loss')
+    plt.legend(frameon=True);
+    plt.subplot(122)
+    plt.xlabel('epochs')
+    plt.ylabel('F1 score')
+    plt.plot(f1_score_list,label='F1 score')
+        
+        
+        
+        
+        
+       # print(f"Epoch: {epoch+1}/{epochs}..", f"Training loss: {train_loss:.3f}")
 
 def evaluate_model(model,test_dl):
     model.eval()
@@ -161,7 +253,8 @@ def evaluate_model(model,test_dl):
         test_accuracies.append(accuracy)
         actual.append(predictions) #Creates a list with all the outputs
         f1_score_result=f1_score(test_label_data,predictions,average='weighted')     
-    print(f"Validation loss: {val_loss:.3f}" ,f"Validation accuracy:{accuracy:.3f}")
+    return f1_score_result,val_loss
+    #print(f"Validation loss: {val_loss:.3f}" ,f"Validation accuracy:{accuracy:.3f}")
      
     print(f"F1 socre: {f1_score_result:.3f}")
 
@@ -174,6 +267,7 @@ print("Validation....")
 evaluate_model(model,test_dl)
 
 #%%
+'''
 plt.figure(figsize=(12,5))
 
 plt.xlabel('epochs')
@@ -181,3 +275,4 @@ plt.ylabel('loss')
 plt.plot(train_losses,label='Training loss')
 plt.legend(frameon=False);
 
+'''
