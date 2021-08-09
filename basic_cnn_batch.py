@@ -3,7 +3,7 @@
 """
 Created on Mon Aug  9 09:23:29 2021
 
-@author: kaan
+@author: oa
 """
 
 import numpy as np
@@ -32,8 +32,10 @@ import torch.nn.functional as F
 #import news_preprocess
 
 #%% read hphyperparameters 
-file_name = '/home/kaan/Downloads/1-ttc3600.xlsx'
-page = 'cleaned'
+# file_name = '/home/kaan/Downloads/1-ttc3600.xlsx'
+# page = 'cleaned'
+file_name = 'data/1-ttc3600.xlsx'
+page = 'dnm'
 
 #file_name = '/home/kaan/Downloads/2-ttc4900.xlsx'
 #page = 'sw_lem'
@@ -44,7 +46,6 @@ useStopwords =     False
 useLemmatize =     False
 
 #%% parameters
- 
 '''
 NO_EPOCHS = 8  # Tuned parameters for ttc3600 cleaned
 LEARNING_RATE = 0.0003
@@ -69,32 +70,38 @@ DROPOUT = 0.1
 STRIDE = 1
 BATCH_SIZE = 32
 '''
-NO_EPOCHS = 5  # Tuned parameters for ttc3600 cleaned
+NO_EPOCHS     = 15              # Tuned parameters for ttc3600 cleaned
 LEARNING_RATE = 0.001
-MOMENTUM = 0.9
-KERNEL_SIZE = 10
-KERNEL_SIZE1 = 10
-KERNEL_SIZE2 = 3
-POOLING = 3
-DROPOUT = 0.17
-STRIDE = 1
-BATCH_SIZE = 128 # or 64
+MOMENTUM      = 0.9
+KERNEL_SIZE   = 10
+KERNEL_SIZE1  = 10
+KERNEL_SIZE2  = 3
+POOLING       = 3
+DROPOUT       = 0.17
+STRIDE        = 1
+BATCH_SIZE    = 128            # or 64
 
-torch.manual_seed(42)
-torch.cuda.manual_seed(42)
-np.random.seed(42)
+# random state
+RS = 42
+torch.manual_seed(RS)
+torch.cuda.manual_seed(RS)
+np.random.seed(RS)
 # %% import data
 data = pd.read_excel(file_name, page)            #, encoding = 'utf-8')
 
+cat_hdr  = 'cat'
+data_hdr = 'description'
+test_ratio = 0.2
+
 # summarize dataset
 print("input data shape:   ", data.shape)
-print(data.groupby('class').size())
-print(data['class'].nunique())
+print(data.groupby(cat_hdr).size())
+print(data[cat_hdr].nunique())
 
-le = LabelEncoder().fit(data["class"])
-data['encodedcat'] = le.transform(data['class'])
+le = LabelEncoder().fit(data[cat_hdr])
+data['encodedcat'] = le.transform(data[cat_hdr])
 
-train_news, test_news, train_topics, test_topics = train_test_split(data['description'],data['encodedcat'],test_size=.2,stratify=data['class'],random_state=42)
+train_news, test_news, train_topics, test_topics = train_test_split(data[data_hdr],data['encodedcat'],test_size=test_ratio,stratify=data[cat_hdr],random_state=RS)
 
 #%%  prepare data
 
@@ -105,19 +112,14 @@ tf_len= len(vectorizer.vocabulary_)
 x_test = vectorizer.transform(test_news)                    #tranform uses the vocabulary and frequencies learned by fit_transform 
 #print(vectorizer.get_feature_names())                       #print the learned vocabulary
 
-
-
 scaler1 = StandardScaler(with_mean=0).fit(x_train)      #Scaling train dataset
 x_train_scaled = scaler1.transform(x_train)
 
 scaler2 = StandardScaler(with_mean=0).fit(x_test)       #Scaling test dataset
 x_test_scaled = scaler2.transform(x_test)
 
-
-
 x_train = torch.tensor(scipy.sparse.csr_matrix.todense(x_train_scaled)).float()  #returns the dense representation of the sparse matrix x_train_scaled and converts it to a tensor
 x_test = torch.tensor(scipy.sparse.csr_matrix.todense(x_test_scaled)).float()
-
 
 #x_train = torch.tensor(scipy.sparse.csr_matrix.todense(x_train)).float()  #returns the dense representation of the sparse matrix x_train_scaled and converts it to a tensor
 #x_test = torch.tensor(scipy.sparse.csr_matrix.todense(x_test)).float()
@@ -125,17 +127,13 @@ x_test = torch.tensor(scipy.sparse.csr_matrix.todense(x_test_scaled)).float()
 y_train = torch.tensor(train_topics.values)                 #converts the panda object to a tensor 
 y_test = torch.tensor(test_topics.values)
 
-
-
 #print(x_train.shape)
 #x_train=x_train[:,:20000]
 #x_test =x_test[:,:20000]
 #print(x_train.shape)
 #print(x_test.shape)
 
-
 training_tuples = []
-
 testing_tuples = []
 
 #print(x_train.shape[0])
@@ -152,22 +150,17 @@ while k < x_test.shape[0]:
     testing_tuples.append(tuple2)
     k=k+1
 
-
-NUM_LABEL = data['class'].nunique()
+NUM_LABEL = data[cat_hdr].nunique()
 TEST_BATCH = y_test.shape[0]
 
 train_dl= DataLoader(training_tuples,batch_size=64,shuffle=True)
 test_dl = DataLoader(testing_tuples, batch_size =TEST_BATCH, shuffle = True)
-
-
-
 
 #https://cezannec.github.io/CNN_Text_Classification/
 #https://github.com/cezannec/CNN_Text_Classification/blob/master/CNN_Text_Classification.ipynb
 
 #%%
 #https://www.machinecurve.com/index.php/2021/03/29/batch-normalization-with-pytorch/
-
 
 class Net(nn.Module):
     def __init__(self):
@@ -178,7 +171,6 @@ class Net(nn.Module):
         self.norm1 = nn.BatchNorm1d(32)
         self.hidden2 = nn.Linear(32,NUM_LABEL)
         
-        
     def forward(self,x):
         x=self.conv1(x)    
         x=F.relu(x)
@@ -188,9 +180,6 @@ class Net(nn.Module):
         x= self.hidden2(x)     
         output=F.softmax(x,dim=1)
         return output   
-
-
-
 
 '''
 class Net(nn.Module):
@@ -217,11 +206,8 @@ class Net(nn.Module):
         x= self.hidden2(x)
         output=F.softmax(x,dim=1)
         return output
-'''
-
-    
-    
-    
+''' 
+ 
 
 #https://www.youtube.com/watch?v=8YsZXTpFRO0
 #https://discuss.pytorch.org/t/pytorch-equivalent-of-keras/29412/2
@@ -235,7 +221,6 @@ val_outputs=[]
 f1_score_list = []
 criterion = nn.CrossEntropyLoss()
 #optimizer= optim.SGD(model.parameters(),lr=LEARNING_RATE,momentum=MOMENTUM)
-
 
 
 def train_model(model,train_dl,epochs):
@@ -274,7 +259,6 @@ def train_model(model,train_dl,epochs):
     plt.plot(f1_score_list,label='F1 score')
     
 
-
 def evaluate_model(model,test_dl):
     model.eval()
     actual = []
@@ -294,7 +278,6 @@ def evaluate_model(model,test_dl):
             f1_score_result=f1_score(test_label_data,predictions,average='weighted')     
             #print("Validation loss :f"F1 score result: {f1_score_result:.3f}")            
             return f1_score_result,val_loss
-        
-        
+                
 train_model(model,train_dl,NO_EPOCHS) 
 #evaluate_model(model,test_dl)   
