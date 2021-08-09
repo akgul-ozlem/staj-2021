@@ -10,7 +10,7 @@
 """
 Created on Wed Aug  4 11:02:15 2021
 
-@author: kaan
+@author: oa
 """
 
 #%% import libraries
@@ -43,8 +43,10 @@ torch.cuda.manual_seed(42)
 np.random.seed(42)
 
 #%% read hphyperparameters 
-file_name = '/home/kaan/Downloads/1-ttc3600.xlsx'
-page = 'cleaned'
+# file_name = '/home/kaan/Downloads/1-ttc3600.xlsx'
+# page = 'cleaned'
+file_name = 'data/1-ttc3600.xlsx'
+page = 'dnm'
 
 # file_name = '/home/kaan/Downloads/1-ttc4900.xlsx'
 # page = 'sw_lem'
@@ -55,7 +57,7 @@ useStopwords =     False
 useLemmatize =     False
 
 #%% parameyer
-NO_EPOCHS = 100
+NO_EPOCHS = 50
 LEARNING_RATE = 0.01
 MOMENTUM = 0.9
 BATCH_SIZE =1440 #720
@@ -72,30 +74,29 @@ else:
     print("No GPU available, using the CPU instead.")
     device = torch.device("cpu")
 
-
-
 # %% import data
 data = pd.read_excel(file_name, page)            #, encoding = 'utf-8')
 
+cat_hdr  = 'cat'
+data_hdr = 'description'
+test_ratio = 0.2
+
 # summarize dataset
 print("input data shape:   ", data.shape)
-print(data.groupby('class').size())
+print(data.groupby(cat_hdr).size())
 
+le = LabelEncoder().fit(data[cat_hdr])
+data['encodedcat'] = le.transform(data[cat_hdr])
 
-le = LabelEncoder().fit(data["class"])
-data['encodedcat'] = le.transform(data['class'])
-
-train_news, test_news, train_topics, test_topics = train_test_split(data['description'],data['encodedcat'],test_size=.2,stratify=data['class'],random_state=42)
+train_news, test_news, train_topics, test_topics = train_test_split(data[data_hdr],data['encodedcat'],test_size=test_ratio,stratify=data[cat_hdr],random_state=42)
 
 #%%  prepare data
-
 
 vectorizer = TfidfVectorizer()                              #Tf-Idf vectorization 
 x_train = vectorizer.fit_transform(train_news)              #fit-transform learns the vocabulary
 
 x_test = vectorizer.transform(test_news)                    #tranform uses the vocabulary and frequencies learned by fit_transform 
 #print(vectorizer.get_feature_names())                       #print the learned vocabulary
-
 
 scaler1 = StandardScaler(with_mean=0).fit(x_train)      #Scaling train dataset
 x_train_scaled = scaler1.transform(x_train)
@@ -106,14 +107,10 @@ x_test_scaled = scaler2.transform(x_test)
 x_train = torch.tensor(scipy.sparse.csr_matrix.todense(x_train_scaled)).float()  #returns the dense representation of the sparse matrix x_train_scaled and converts it to a tensor
 x_test = torch.tensor(scipy.sparse.csr_matrix.todense(x_test_scaled)).float()
 
-
 y_train = torch.tensor(train_topics.values)                 #converts the panda object to a tensor 
 y_test = torch.tensor(test_topics.values)
 
-
-
 training_tuples = []
-
 testing_tuples = []
 
 #print(x_train.shape[0])
@@ -130,23 +127,19 @@ while k < x_test.shape[0]:
     testing_tuples.append(tuple2)
     k=k+1
 
-
 train_dl= DataLoader(training_tuples,batch_size=BATCH_SIZE,shuffle=True)
 test_dl = DataLoader(testing_tuples, batch_size =720, shuffle = True)
 
 print(x_train.shape[1])
 
-
 #%% training function
-
 train_losses = []
 test_losses = []
 test_accuracies = []
 val_outputs= []
 f1_score_list = []
 
-
-model = nn. Sequential(nn.Linear(x_train.shape[1],data['class'].nunique()),nn.ReLU(),nn.Dropout(0.5),nn.Softmax(dim=1))
+model = nn. Sequential(nn.Linear(x_train.shape[1],data[cat_hdr].nunique()),nn.ReLU(),nn.Dropout(0.5),nn.Softmax(dim=1))
 criterion = nn.CrossEntropyLoss()            
 
 '''
@@ -195,7 +188,6 @@ model = nn. Sequential(nn.Linear(x_train.shape[1],1024),
 criterion = nn.CrossEntropyLoss()
 '''
 
-
 def train_model(model,train_dl,epochs):
     model.train()
     
@@ -228,13 +220,8 @@ def train_model(model,train_dl,epochs):
     plt.subplot(122)
     plt.xlabel('epochs')
     plt.ylabel('F1 score')
-    plt.plot(f1_score_list,label='F1 score')
-        
-        
-        
-        
-        
-       # print(f"Epoch: {epoch+1}/{epochs}..", f"Training loss: {train_loss:.3f}")
+    plt.plot(f1_score_list,label='F1 score')             
+    # print(f"Epoch: {epoch+1}/{epochs}..", f"Training loss: {train_loss:.3f}")
 
 def evaluate_model(model,test_dl):
     model.eval()
@@ -254,14 +241,11 @@ def evaluate_model(model,test_dl):
         actual.append(predictions) #Creates a list with all the outputs
         f1_score_result=f1_score(test_label_data,predictions,average='weighted')     
     return f1_score_result,val_loss
-    #print(f"Validation loss: {val_loss:.3f}" ,f"Validation accuracy:{accuracy:.3f}")
-     
+    #print(f"Validation loss: {val_loss:.3f}" ,f"Validation accuracy:{accuracy:.3f}")     
     print(f"F1 socre: {f1_score_result:.3f}")
-
 
 print("Training....")
 train_model(model,train_dl,NO_EPOCHS)
-
 
 print("Validation....")
 evaluate_model(model,test_dl)
@@ -274,5 +258,4 @@ plt.xlabel('epochs')
 plt.ylabel('loss')
 plt.plot(train_losses,label='Training loss')
 plt.legend(frameon=False);
-
 '''
