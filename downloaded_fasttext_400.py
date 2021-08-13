@@ -42,19 +42,36 @@ tokenizer = get_tokenizer("basic_english")
 
 
 #%% parameters
-
-
-#Optimizer parameters
-BATCH_SIZE = 64
+'''
+#Optimizer parameters                                 17.5% parameters
+BATCH_SIZE = 256
 EPOCHS = 10
-LEARNING_RATE =0.01
+LEARNING_RATE =0.1
 MOMENTUM = 0.9
 
 #LSTM parameters
 VECTOR_SIZE = 300      #Input size and the vector size are the same
 INPUT_SIZE = 300
 
-HIDDEN_SIZE = 100
+HIDDEN_SIZE = 300
+
+NUM_LAYERS = 1
+
+SENTENCE_LENGTH = 400  # max text length is 3125
+
+SHUFFLE = True
+'''
+#Optimizer parameters
+BATCH_SIZE = 64
+EPOCHS = 10
+LEARNING_RATE =1
+MOMENTUM = 0.9
+
+#LSTM parameters
+VECTOR_SIZE = 300      #Input size and the vector size are the same
+INPUT_SIZE = 300
+
+HIDDEN_SIZE = 300
 
 NUM_LAYERS = 1
 
@@ -93,7 +110,6 @@ scoring =          'accuracy'
 useStopwords =     False 
 useLemmatize =     False
 
-
 # %% import data
 data = pd.read_excel(file_name, page)            #, encoding = 'utf-8')
 
@@ -127,63 +143,34 @@ y_train = torch.tensor(train_topics.values)                 #converts the panda 
 y_test = torch.tensor(test_topics.values)
 
 
+
+
 #%% Prepare training dataset
 #train dataset for dataloader
 
 
 training_tuples = []
 
-'''
 for j,_  in enumerate(train_news):
     a = torch.zeros( SENTENCE_LENGTH,VECTOR_SIZE)
     for num , i in enumerate(training_tokens[j]):   
             
-        try:
-                a[num] = torch.Tensor(vectors[i]).reshape(1,300)  # construct  matrices for each sentence
-                
-        except KeyError:
-                continue
-            
-        tuple1=(a,y_train[j])
-        
-        training_tuples.append(tuple1)                              # construct tuples with data and labels
-'''
-
-
-for j,_  in enumerate(train_news):
-    a = torch.zeros( SENTENCE_LENGTH,VECTOR_SIZE)
-    for num , i in enumerate(training_tokens[j]):   
-            
-        if num<400:
+        if num < SENTENCE_LENGTH:
         
             try:
-                    a[num] = torch.Tensor(vectors[i]).reshape(1,300)  # construct  matrices for each sentence
+                    a[num] = torch.Tensor(vectors[i]).reshape(1,VECTOR_SIZE)  # construct  matrices for each sentence
                     
             except KeyError:
                     continue
             
         else: continue
-        tuple1=(a,y_train[j])
-        
-        training_tuples.append(tuple1)                              # construct tuples with data and labels
-
-
-'''
-while j< train_news.__len__():
-    
-    for num , i in enumerate(training_tokens[j]):   
-        
-        try:
-            a[num] = torch.Tensor(vectors[i]).reshape(1,300)  # construct  matrices for each sentence
-            
-        except KeyError:
-            continue
-        
+    a = StandardScaler(with_mean = 0).fit_transform(a)
+    #a = nn.functional.normalize(a)
     tuple1=(a,y_train[j])
-    print(a.shape)
+
     training_tuples.append(tuple1)                              # construct tuples with data and labels
-    j = j+1
-'''
+
+
 #%% Prepare test dataset
 #test dataset for test dataloader
 testing_tuples = []
@@ -193,40 +180,21 @@ testing_tuples = []
 for j,_  in enumerate(test_news):
     b = torch.zeros( SENTENCE_LENGTH,VECTOR_SIZE)
     for num2 , i2 in enumerate(testing_tokens[j]):   
-        if num2<400:
+        if num2 < SENTENCE_LENGTH:
         
             try:
-                    b[num2] = torch.Tensor(vectors[i2]).reshape(1,300)  # construct  matrices for each sentence
+                    b[num2] = torch.Tensor(vectors[i2]).reshape(1,VECTOR_SIZE)  # construct  matrices for each sentence
                     
             except KeyError:
                     continue
             
         else: continue    
-                  
-        tuple2=(b,y_test[j])
-        
-        testing_tuples.append(tuple2)                              # construct tuples with data and labels
-
-
-
-
-
-'''
-k = 0
-
-while k< test_news.__len__():
+    b = StandardScaler(with_mean = 0).fit_transform(b)
+    #b = nn.functional.normalize(b)             
+    tuple2=(b,y_test[j])
     
-    for num2 , i2 in enumerate(testing_tokens[k]):
-        
-        try:
-            a[num2] = torch.Tensor(vectors[i2]).reshape(1,300)  # construct 300x400 matrices for each sentence
-        except KeyError:
-            continue
-        
-    tuple2=(a,y_test[k])
     testing_tuples.append(tuple2)                              # construct tuples with data and labels
-    k= k+1
-'''
+
 #%%
 '''
 print(testing_tokens[0])
@@ -237,17 +205,8 @@ print(vec[1,:].shape)
 print(vectors['5'])
 
 '''
-
-#%%
-
-NUM_LABEL = data['class'].nunique()
-TEST_BATCH = test_topics.__len__()
-
-train_dl= DataLoader(training_tuples,batch_size=BATCH_SIZE,shuffle=SHUFFLE,pin_memory=True)
-test_dl = DataLoader(testing_tuples, batch_size =TEST_BATCH, shuffle = SHUFFLE, pin_memory = True)
-
 #%% Cuda
-
+'''
 if torch.cuda.is_available():
     device = torch.device("cuda:2")
     print(f"There are {torch.cuda.device_count()} GPU(s) available.")
@@ -257,9 +216,22 @@ else:
     device = torch.device("cpu")
 
 torch.cuda.empty_cache()
+'''
+
+device = torch.device("cpu")
+
+#%%
+
+NUM_LABEL = data['class'].nunique()
+TEST_BATCH = test_topics.__len__()
+
+train_dl= DataLoader(training_tuples,batch_size=BATCH_SIZE,shuffle=SHUFFLE,pin_memory=True)
+test_dl = DataLoader(testing_tuples, batch_size =TEST_BATCH, shuffle = SHUFFLE, pin_memory = True)
 
 
 #%%Model design
+
+print("---Model Design------------------------------")
 class RNNet(nn.Module):
     def __init__(self,input_layer, hidden_size,num_layers):
         super(RNNet,self).__init__()
@@ -268,7 +240,7 @@ class RNNet(nn.Module):
         self.num_layers = num_layers
         
         self.LSTM = nn.LSTM(input_size = input_layer,hidden_size = hidden_size, num_layers = num_layers)
-        self.linear = nn.Linear(hidden_size,NUM_LABEL).to('cuda:2')
+        self.linear = nn.Linear(hidden_size,NUM_LABEL).to(device)
         
         
     def forward(self,x):
@@ -280,13 +252,13 @@ class RNNet(nn.Module):
         
         output= output[-1,:,:]
 
-        output = self.linear(output)
+        output = F.softmax(self.linear(output), dim = 1)
         return output   
 
 
 model = RNNet (INPUT_SIZE, HIDDEN_SIZE, NUM_LAYERS).to(device)
 
-#%%% Main function
+# Main function
 
 train_losses = []
 test_losses = []
@@ -304,7 +276,7 @@ def train_model(model,train_dl,test_dl,epochs):
     #optimizer = optim.Adam(model.parameters(),lr = LEARNING_RATE,weight_decay=WEIGHT_DECAY)
     for epoch in range(epochs):
         print(model)
-        optimizer.zero_grad()
+        
         for train_data, train_label_data in train_dl: 
             model.train()
             train_data = train_data.to(device).float()
@@ -316,12 +288,14 @@ def train_model(model,train_dl,test_dl,epochs):
             loss.backward()
             train_loss = loss.item()
             
-            #train_losses.append(train_loss)
+            train_losses.append(train_loss)
             optimizer.step()
-            #loss.detach()
+            optimizer.zero_grad()
+            loss.detach()
+            
             validation_f1_score,val_loss = evaluate_model(model,test_dl)
-            #f1_score_list.append(validation_f1_score)
-            #test_losses.append(val_loss)
+            f1_score_list.append(validation_f1_score)
+            test_losses.append(val_loss)
             torch.cuda.empty_cache()
             print(f"Epoch: {epoch+1}/{epochs}..", f"Training loss: {train_loss:.3f}", f"Validation loss: {val_loss:.3f} " , f"Validation F1 Score: {validation_f1_score:.3f}")
     
@@ -349,9 +323,9 @@ def evaluate_model(model,test_dl):
         test_label_data = test_label_data.to(device)
         
         val_out = model(test_data)
-        #val_outputs.append(val_out)
+        
         val_loss= criterion(val_out,test_label_data)
-        #test_losses.append(val_loss)
+        
         val_loss.detach()
         #targets=test_label_data.cpu().numpy()
                     
