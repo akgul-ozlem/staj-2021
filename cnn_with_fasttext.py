@@ -52,53 +52,54 @@ useStopwords =     False
 useLemmatize =     False
 
 #%% parameters
-'''
-NO_EPOCHS = 8  # Tuned parameters for ttc3600 cleaned
-LEARNING_RATE = 0.0003
-MOMENTUM = 0.9
-KERNEL_SIZE = 10
-KERNEL_SIZE1 = 10
-KERNEL_SIZE2 = 3
-POOLING = 3
-DROPOUT = 0.15
-STRIDE = 1
-BATCH_SIZE = 80 # or 64
-'''
-'''
-NO_EPOCHS = 10 # Tuned parameters for ttc4900 sw_lem
-LEARNING_RATE = 0.00005
-MOMENTUM = 0.9
-KERNEL_SIZE = 17
-KERNEL_SIZE1 = 10
-KERNEL_SIZE2 = 3
-POOLING = 2
-DROPOUT = 0.1
-STRIDE = 1
-BATCH_SIZE = 32
-'''
-NO_EPOCHS     = 5             # Tuned parameters for ttc3600 cleaned
-LEARNING_RATE = 0.01
+'''       94% parameters ttc3600 cleaned
+NO_EPOCHS     = 30           
+LEARNING_RATE = 0.1
 MOMENTUM      = 0.9
-KERNEL_SIZE   = 10
+KERNEL_SIZE   = 12
 
 POOLING       = 4
-DROPOUT       = 0.1
+DROPOUT       = 0.2
 STRIDE        = 1
-BATCH_SIZE    = 64        # or 64
+BATCH_SIZE    = 64     # or 64
 
 
 #LSTM parameters
 VECTOR_SIZE = 300      #Input size and the vector size are the same
 INPUT_SIZE = 300
 
-HIDDEN_SIZE = 100
+HIDDEN_SIZE = 200
 
 NUM_LAYERS = 1
 
 SENTENCE_LENGTH = 400  # max text length is 3125
 
 SHUFFLE = True
+'''
 
+
+NO_EPOCHS     = 30           
+LEARNING_RATE = 0.1
+MOMENTUM      = 0.9
+KERNEL_SIZE   = 12
+
+POOLING       = 4
+DROPOUT       = 0.2
+STRIDE        = 1
+BATCH_SIZE    = 32    # or 64
+
+
+#LSTM parameters
+VECTOR_SIZE = 300      #Input size and the vector size are the same
+INPUT_SIZE = 300
+
+HIDDEN_SIZE = 200
+
+NUM_LAYERS = 1
+
+SENTENCE_LENGTH = 400  # max text length is 3125
+
+SHUFFLE = True
 
 # random state
 RS = 42
@@ -123,6 +124,7 @@ for line in fin:
     vectors[tokens[0]] = [float(i) for i in tokens[1:]]
 # vector is a dictionary with keys corresponding to each vectorized word (with length 300)
 # vector[','] as an example ( to reach the vectors)
+
 
 #%%obtain data
 file_name = '/home/kaan/Downloads/1-ttc3600.xlsx'
@@ -187,9 +189,10 @@ for j,_  in enumerate(train_news):
                     continue
             
         else: continue
-        tuple1=(a,y_train[j])
-        
-        training_tuples.append(tuple1)                              # construct tuples with data and labels
+    a = nn.functional.normalize(a)
+    tuple1=(a,y_train[j])
+    print(a.shape)
+    training_tuples.append(tuple1)                              # construct tuples with data and labels
 
 #%% Prepare test dataset
 #test dataset for test dataloader
@@ -209,10 +212,10 @@ for j,_  in enumerate(test_news):
                     continue
             
         else: continue    
-                  
-        tuple2=(b,y_test[j])
-        print(b.shape)
-        testing_tuples.append(tuple2)                              # construct tuples with data and labels
+    b = nn.functional.normalize(b)             
+    tuple2=(b,y_test[j])
+    print(b.shape)
+    testing_tuples.append(tuple2)                              # construct tuples with data and labels
 
 
 #%%
@@ -221,11 +224,15 @@ NUM_LABEL = data['class'].nunique()
 TEST_BATCH = test_topics.__len__()
 
 train_dl= DataLoader(training_tuples,batch_size=BATCH_SIZE,shuffle=SHUFFLE,pin_memory=True)
-test_dl = DataLoader(testing_tuples, batch_size =BATCH_SIZE, shuffle = SHUFFLE, pin_memory = True)
+test_dl = DataLoader(testing_tuples, batch_size =TEST_BATCH, shuffle = SHUFFLE, pin_memory = True)
 
 #%%
+
+print(test_dl.__len__())
+'''
 for a , b in train_dl :
     print(a.shape)
+    '''
 #%% Cuda
 
 if torch.cuda.is_available():
@@ -246,15 +253,16 @@ class Net(nn.Module):
         super(Net,self).__init__()
         self.conv1=nn.LazyConv1d(VECTOR_SIZE, KERNEL_SIZE,STRIDE)
         self.pool1=nn.MaxPool1d(POOLING)
-        self.hidden = nn.LazyLinear(32)
-        self.norm1 = nn.BatchNorm1d(32)
-        self.hidden2 = nn.Linear(32,NUM_LABEL)
+        self.hidden = nn.LazyLinear(HIDDEN_SIZE)
+        self.norm1 = nn.BatchNorm1d(HIDDEN_SIZE)
+        self.hidden2 = nn.Linear(HIDDEN_SIZE,NUM_LABEL)
         
     def forward(self,x):
         x=self.conv1(x)    
         x=F.relu(x)
         x=self.pool1(x)
         x=x.view(x.size(0),-1) 
+        #x=self.hidden(x)
         x=self.norm1(self.hidden(x))
         x= self.hidden2(x)     
         output=F.softmax(x,dim=1)
@@ -266,8 +274,6 @@ class Net(nn.Module):
         
 model=Net()
 
-
-#%%
 train_losses=[]
 test_losses=[]
 test_accuracies=[]
@@ -277,7 +283,7 @@ criterion = nn.CrossEntropyLoss()
 #optimizer= optim.SGD(model.parameters(),lr=LEARNING_RATE,momentum=MOMENTUM)
 
 
-def train_model(model,train_dl,epochs):
+def train_model(model,train_dl,test_dl,epochs):
     model.train()
     optimizer= optim.SGD(model.parameters(),lr=LEARNING_RATE,momentum=MOMENTUM)
     for epoch in range(epochs):
@@ -333,5 +339,5 @@ def evaluate_model(model,test_dl):
             #print("Validation loss :f"F1 score result: {f1_score_result:.3f}")            
             return f1_score_result,val_loss
                 
-train_model(model,train_dl,NO_EPOCHS) 
+train_model(model,train_dl,test_dl,NO_EPOCHS) 
 #evaluate_model(model,test_dl)  
