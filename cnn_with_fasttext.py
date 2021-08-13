@@ -61,7 +61,7 @@ KERNEL_SIZE   = 12
 POOLING       = 4
 DROPOUT       = 0.2
 STRIDE        = 1
-BATCH_SIZE    = 64     # or 64
+BATCH_SIZE    = 32     # or 64
 
 
 #LSTM parameters
@@ -79,11 +79,11 @@ SHUFFLE = True
 
 
 NO_EPOCHS     = 30           
-LEARNING_RATE = 0.1
+LEARNING_RATE = 0.05
 MOMENTUM      = 0.9
 KERNEL_SIZE   = 12
 
-POOLING       = 4
+POOLING       = 5
 DROPOUT       = 0.2
 STRIDE        = 1
 BATCH_SIZE    = 32    # or 64
@@ -189,9 +189,10 @@ for j,_  in enumerate(train_news):
                     continue
             
         else: continue
+    #a = StandardScaler(with_mean = 0).fit_transform(a)
     a = nn.functional.normalize(a)
     tuple1=(a,y_train[j])
-    print(a.shape)
+
     training_tuples.append(tuple1)                              # construct tuples with data and labels
 
 #%% Prepare test dataset
@@ -212,9 +213,10 @@ for j,_  in enumerate(test_news):
                     continue
             
         else: continue    
+    #b = StandardScaler(with_mean = 0).fit_transform(b)
     b = nn.functional.normalize(b)             
     tuple2=(b,y_test[j])
-    print(b.shape)
+    
     testing_tuples.append(tuple2)                              # construct tuples with data and labels
 
 
