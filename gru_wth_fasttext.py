@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Thu Aug 12 14:30:50 2021
+Created on Fri Aug 13 15:28:09 2021
 
 @author: kaan
 """
-
-#Needs to be trained then tuned
+#Needs to be tuned more
+#Consider layer normalization in case num_layers>1
 
 from gensim.models.fasttext import FastText
 import nltk
@@ -241,16 +241,16 @@ class RNNet(nn.Module):
         self.hidden_size = hidden_size
         self.num_layers = num_layers
         
-        self.LSTM = nn.LSTM(input_size = input_layer,hidden_size = hidden_size, num_layers = num_layers)
+        self.GRU = nn.GRU(input_size = input_layer,hidden_size = hidden_size, num_layers = num_layers)
         self.linear = nn.Linear(hidden_size,NUM_LABEL).to('cuda:1')
         
         
     def forward(self,x):
         h0 = torch.zeros(self.num_layers,x.shape[1], self.hidden_size, device = device)
-        c0 = torch.zeros(self.num_layers,x.shape[1], self.hidden_size, device = device)
         
         
-        output, (hn,cn) = self.LSTM(x,(h0,c0)) 
+        
+        output, hn = self.GRU(x,h0) 
         
         output= output[-1,:,:]
 
@@ -278,7 +278,7 @@ def train_model(model,train_dl,test_dl,epochs):
     optimizer= optim.SGD(model.parameters(),lr=LEARNING_RATE,momentum=MOMENTUM)
     #optimizer = optim.Adam(model.parameters(),lr = LEARNING_RATE,weight_decay=WEIGHT_DECAY)
     for epoch in range(epochs):
-        print(model)
+        
         
         for train_data, train_label_data in train_dl: 
             model.train()
@@ -291,14 +291,15 @@ def train_model(model,train_dl,test_dl,epochs):
             loss.backward()
             train_loss = loss.item()
             
-            train_losses.append(train_loss)
+            #train_losses.append(train_loss)
             optimizer.step()
             optimizer.zero_grad()
             loss.detach()
             
             validation_f1_score,val_loss = evaluate_model(model,test_dl)
-            f1_score_list.append(validation_f1_score)
-            test_losses.append(val_loss)
+            
+            #f1_score_list.append(validation_f1_score)
+            #test_losses.append(val_loss)
             torch.cuda.empty_cache()
             print(f"Epoch: {epoch+1}/{epochs}..", f"Training loss: {train_loss:.3f}", f"Validation loss: {val_loss:.3f} " , f"Validation F1 Score: {validation_f1_score:.3f}")
     
