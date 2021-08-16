@@ -43,28 +43,10 @@ tokenizer = get_tokenizer("basic_english")
 
 #%% parameters
 '''
-#Optimizer parameters                                 17.5% parameters
-BATCH_SIZE = 256
-EPOCHS = 10
-LEARNING_RATE =0.1  #/1 for 20% 
-MOMENTUM = 0.9
-
-#LSTM parameters
-VECTOR_SIZE = 300      #Input size and the vector size are the same
-INPUT_SIZE = 300
-
-HIDDEN_SIZE = 300
-
-NUM_LAYERS = 1
-
-SENTENCE_LENGTH = 400  # max text length is 3125
-
-SHUFFLE = True
-'''
-#Optimizer parameters
-BATCH_SIZE = 128
+#Optimizer parameters              # 91.5% for ttc3600
+BATCH_SIZE = 200
 EPOCHS = 50
-LEARNING_RATE =1
+LEARNING_RATE =0.5
 MOMENTUM = 0.9
 DROPOUT = 0.1
 
@@ -76,7 +58,27 @@ HIDDEN_SIZE = 300
 
 NUM_LAYERS = 1
 
-SENTENCE_LENGTH = 300  # max text length is 3125
+SENTENCE_LENGTH = 200  # max text length is 3125
+
+SHUFFLE = True
+
+'''
+#Optimizer parameters
+BATCH_SIZE = 200
+EPOCHS = 50
+LEARNING_RATE =0.5
+MOMENTUM = 0.9
+DROPOUT = 0.1
+
+#LSTM parameters
+VECTOR_SIZE = 300      #Input size and the vector size are the same
+INPUT_SIZE = 300
+
+HIDDEN_SIZE = 300
+
+NUM_LAYERS = 1
+
+SENTENCE_LENGTH = 200  # max text length is 3125
 
 SHUFFLE = True
 
@@ -167,7 +169,7 @@ for j,_  in enumerate(train_news):
             
         else: continue
     a = StandardScaler(with_mean = 0).fit_transform(a)
-    #a = nn.functional.normalize(a)
+    
     tuple1=(a,y_train[j])
 
     training_tuples.append(tuple1)                              # construct tuples with data and labels
@@ -192,7 +194,7 @@ for j,_  in enumerate(test_news):
             
         else: continue    
     b = StandardScaler(with_mean = 0).fit_transform(b)
-    #b = nn.functional.normalize(b)             
+                
     tuple2=(b,y_test[j])
     
     testing_tuples.append(tuple2)                              # construct tuples with data and labels
@@ -208,7 +210,7 @@ print(vectors['5'])
 
 '''
 #%% Cuda
-'''
+
 if torch.cuda.is_available():
     device = torch.device("cuda:2")
     print(f"There are {torch.cuda.device_count()} GPU(s) available.")
@@ -218,9 +220,9 @@ else:
     device = torch.device("cpu")
 
 torch.cuda.empty_cache()
-'''
 
-device = torch.device("cpu")
+
+#device = torch.device("cpu")
 
 #%%
 
@@ -255,7 +257,7 @@ class RNNet(nn.Module):
         output= output[-1,:,:]
 
         output = self.linear(output)
-        output = F.softmax(output, dim = 1)
+        output = F.log_softmax(output, dim = 1)
         return output   
 
 
@@ -274,11 +276,11 @@ criterion =  nn.CrossEntropyLoss()
 def train_model(model,train_dl,test_dl,epochs):
        
     #gc.collect()
-    
+    print(model)
     optimizer= optim.SGD(model.parameters(),lr=LEARNING_RATE,momentum=MOMENTUM)
     #optimizer = optim.Adam(model.parameters(),lr = LEARNING_RATE,weight_decay=WEIGHT_DECAY)
     for epoch in range(epochs):
-        print(model)
+        
         
         for train_data, train_label_data in train_dl: 
             model.train()
@@ -291,14 +293,14 @@ def train_model(model,train_dl,test_dl,epochs):
             loss.backward()
             train_loss = loss.item()
             
-            train_losses.append(train_loss)
+            #train_losses.append(train_loss)
             optimizer.step()
             optimizer.zero_grad()
             loss.detach()
             
             validation_f1_score,val_loss = evaluate_model(model,test_dl)
             f1_score_list.append(validation_f1_score)
-            test_losses.append(val_loss)
+            #test_losses.append(val_loss)
             torch.cuda.empty_cache()
             print(f"Epoch: {epoch+1}/{epochs}..", f"Training loss: {train_loss:.3f}", f"Validation loss: {val_loss:.3f} " , f"Validation F1 Score: {validation_f1_score:.3f}")
     
