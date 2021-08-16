@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Fri Aug 13 15:28:09 2021
+Created on Mon Aug 16 10:51:53 2021
 
 @author: kaan
 """
+
 #Needs to be tuned more
 #Consider layer normalization in case num_layers>1
 
@@ -42,12 +43,14 @@ tokenizer = get_tokenizer("basic_english")
 
 
 #%% parameters
-'''
-#Optimizer parameters                                 17.5% parameters
+
+'''                              
+#Optimizer parameters           93% ttc3600         or even 94
 BATCH_SIZE = 256
-EPOCHS = 10
-LEARNING_RATE =0.1  #/1 for 20% 
+EPOCHS = 100
+LEARNING_RATE =0.5
 MOMENTUM = 0.9
+DROPOUT = 0.1
 
 #LSTM parameters
 VECTOR_SIZE = 300      #Input size and the vector size are the same
@@ -57,13 +60,13 @@ HIDDEN_SIZE = 300
 
 NUM_LAYERS = 1
 
-SENTENCE_LENGTH = 400  # max text length is 3125
+SENTENCE_LENGTH = 200  # max text length is 3125
 
 SHUFFLE = True
 '''
 #Optimizer parameters
 BATCH_SIZE = 256
-EPOCHS = 100
+EPOCHS = 30
 LEARNING_RATE =0.5
 MOMENTUM = 0.9
 DROPOUT = 0.1
@@ -100,11 +103,11 @@ for line in fin:
 
 
 #%%obtain data
-#file_name = '/home/kaan/Downloads/1-ttc3600.xlsx'
-#page = 'cleaned'
+file_name = '/home/kaan/Downloads/1-ttc3600.xlsx'
+page = 'cleaned'
 
-file_name = '/home/kaan/Downloads/2-ttc4900.xlsx'
-page = 'sw_lem'
+#file_name = '/home/kaan/Downloads/2-ttc4900.xlsx'
+#page = 'sw_lem'
 
 language =         'turkish'
 scoring =          'accuracy'    
@@ -205,7 +208,6 @@ print(vec.shape)
 print(vec[1,:])
 print(vec[1,:].shape)
 print(vectors['5'])
-
 '''
 #%% Cuda
 
@@ -299,7 +301,7 @@ def train_model(model,train_dl,test_dl,epochs):
             
             validation_f1_score,val_loss = evaluate_model(model,test_dl)
             
-            #f1_score_list.append(validation_f1_score)
+            f1_score_list.append(validation_f1_score)
             #test_losses.append(val_loss)
             torch.cuda.empty_cache()
             print(f"Epoch: {epoch+1}/{epochs}..", f"Training loss: {train_loss:.3f}", f"Validation loss: {val_loss:.3f} " , f"Validation F1 Score: {validation_f1_score:.3f}")
