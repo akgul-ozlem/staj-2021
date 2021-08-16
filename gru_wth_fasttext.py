@@ -62,9 +62,9 @@ SENTENCE_LENGTH = 400  # max text length is 3125
 SHUFFLE = True
 '''
 #Optimizer parameters
-BATCH_SIZE = 128
-EPOCHS = 50
-LEARNING_RATE =1
+BATCH_SIZE = 256
+EPOCHS = 100
+LEARNING_RATE =0.5
 MOMENTUM = 0.9
 DROPOUT = 0.1
 
@@ -76,7 +76,7 @@ HIDDEN_SIZE = 300
 
 NUM_LAYERS = 1
 
-SENTENCE_LENGTH = 300  # max text length is 3125
+SENTENCE_LENGTH = 200  # max text length is 3125
 
 SHUFFLE = True
 
@@ -100,11 +100,11 @@ for line in fin:
 
 
 #%%obtain data
-file_name = '/home/kaan/Downloads/1-ttc3600.xlsx'
-page = 'cleaned'
+#file_name = '/home/kaan/Downloads/1-ttc3600.xlsx'
+#page = 'cleaned'
 
-#file_name = '/home/kaan/Downloads/2-ttc4900.xlsx'
-#page = 'sw_lem'
+file_name = '/home/kaan/Downloads/2-ttc4900.xlsx'
+page = 'sw_lem'
 
 language =         'turkish'
 scoring =          'accuracy'    
@@ -208,7 +208,7 @@ print(vectors['5'])
 
 '''
 #%% Cuda
-'''
+
 if torch.cuda.is_available():
     device = torch.device("cuda:2")
     print(f"There are {torch.cuda.device_count()} GPU(s) available.")
@@ -218,9 +218,9 @@ else:
     device = torch.device("cpu")
 
 torch.cuda.empty_cache()
-'''
 
-device = torch.device("cpu")
+
+#device = torch.device("cpu")
 
 #%%
 
@@ -255,7 +255,7 @@ class RNNet(nn.Module):
         output= output[-1,:,:]
 
         output = self.linear(output)
-        output = F.softmax(output, dim = 1)
+        output = F.log_softmax(output, dim = 0)
         return output   
 
 
@@ -283,7 +283,8 @@ def train_model(model,train_dl,test_dl,epochs):
         for train_data, train_label_data in train_dl: 
             model.train()
             train_data = train_data.to(device).float()
-            train_data =train_data.permute(1,0,2)
+            train_data = train_data.transpose(0,1)
+            #train_data =train_data.permute(1,0,2)
             train_label_data = train_label_data.to(device)
             output = model(train_data)
 
@@ -323,7 +324,8 @@ def evaluate_model(model,test_dl):
     #actual = []
     for test_data,test_label_data in test_dl:
         test_data = test_data.to(device).float()
-        test_data =test_data.permute(1,0,2)
+        test_data = test_data.transpose(0,1)
+        #test_data =test_data.permute(1,0,2)
         test_label_data = test_label_data.to(device)
         
         val_out = model(test_data)
