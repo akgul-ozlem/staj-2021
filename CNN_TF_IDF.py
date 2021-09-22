@@ -32,13 +32,16 @@ import torch.nn.functional as F
 #import news_preprocess
 
 #%% read hphyperparameters 
-# file_name = '/home/kaan/Downloads/1-ttc3600.xlsx'
-# page = 'cleaned'
-file_name = 'data/1-ttc3600.xlsx'
-page = 'dnm'
+#file_name = '/home/ozlem/Downloads/2-ttc4900.xlsx'
+#page = 'noSW_noLem'
+#file_name = 'data/1-ttc3600.xlsx'
+#page = 'dnm'
 
-#file_name = '/home/kaan/Downloads/2-ttc4900.xlsx'
+#file_name = '/home/ozlem/Downloads/2-ttc4900.xlsx'
 #page = 'sw_lem'
+
+file_name = '/home/ozlem/Downloads/1-ttc3600.xlsx'
+page = 'cleaned'
 
 language =         'turkish'
 scoring =          'accuracy'    
@@ -70,16 +73,15 @@ DROPOUT = 0.1
 STRIDE = 1
 BATCH_SIZE = 32
 '''
-NO_EPOCHS     = 15              # Tuned parameters for ttc3600 cleaned
-LEARNING_RATE = 0.001
+NO_EPOCHS     =5  # Tuned parameters for ttc3600 cleaned
+LEARNING_RATE = 0.005
 MOMENTUM      = 0.9
-KERNEL_SIZE   = 10
-KERNEL_SIZE1  = 10
-KERNEL_SIZE2  = 3
-POOLING       = 3
-DROPOUT       = 0.17
+KERNEL_SIZE   = 12
+HIDDEN_SIZE = 256
+POOLING       = 1
+#DROPOUT       = 0.17
 STRIDE        = 1
-BATCH_SIZE    = 128            # or 64
+BATCH_SIZE    = 64  # or 64
 
 # random state
 RS = 42
@@ -89,7 +91,7 @@ np.random.seed(RS)
 # %% import data
 data = pd.read_excel(file_name, page)            #, encoding = 'utf-8')
 
-cat_hdr  = 'cat'
+cat_hdr  = 'class'
 data_hdr = 'description'
 test_ratio = 0.2
 
@@ -153,7 +155,7 @@ while k < x_test.shape[0]:
 NUM_LABEL = data[cat_hdr].nunique()
 TEST_BATCH = y_test.shape[0]
 
-train_dl= DataLoader(training_tuples,batch_size=64,shuffle=True)
+train_dl= DataLoader(training_tuples,batch_size=BATCH_SIZE,shuffle=True)
 test_dl = DataLoader(testing_tuples, batch_size =TEST_BATCH, shuffle = True)
 
 #https://cezannec.github.io/CNN_Text_Classification/
@@ -167,9 +169,9 @@ class Net(nn.Module):
         super(Net,self).__init__()
         self.conv1=nn.LazyConv1d(1, KERNEL_SIZE,STRIDE)
         self.pool1=nn.MaxPool1d(POOLING)
-        self.hidden = nn.LazyLinear(32)
-        self.norm1 = nn.BatchNorm1d(32)
-        self.hidden2 = nn.Linear(32,NUM_LABEL)
+        self.hidden = nn.LazyLinear(HIDDEN_SIZE)
+        self.norm1 = nn.BatchNorm1d(HIDDEN_SIZE)
+        self.hidden2 = nn.Linear(HIDDEN_SIZE,NUM_LABEL)
         
     def forward(self,x):
         x=self.conv1(x)    
@@ -225,11 +227,13 @@ criterion = nn.CrossEntropyLoss()
 
 def train_model(model,train_dl,epochs):
     model.train()
+    max = 0
+    maxepoch = 0
     optimizer= optim.SGD(model.parameters(),lr=LEARNING_RATE,momentum=MOMENTUM)
     for epoch in range(epochs):
-        optimizer.zero_grad()
+        
         for train_data, train_label_data in train_dl: 
-
+            optimizer.zero_grad()
             train_data=train_data.unsqueeze(1)    #[batch_size, in_channels, len]
 
             output = model.forward(train_data)
@@ -237,14 +241,22 @@ def train_model(model,train_dl,epochs):
             
             loss.backward()
             train_loss = loss.item()
-            train_losses.append(train_loss)
+            #train_losses.append(train_loss)
             optimizer.step()
             
             validation_f1_score,val_loss = evaluate_model(model,test_dl)
-            f1_score_list.append(validation_f1_score)
-            test_losses.append(val_loss)
+            if validation_f1_score > max :
+                max = validation_f1_score
+                maxepoch = epoch
+            else :
+                max = max
+                maxepoch = epoch
+            #f1_score_list.append(validation_f1_score)
+            #test_losses.append(val_loss)
             print(f"Epoch: {epoch+1}/{epochs}..", f"Training loss: {train_loss:.3f}", f"Validation loss: {val_loss:.3f} " , f"Validation F1 Score: {validation_f1_score:.3f}")
-    
+        
+    print(f"Max F1 score: {max:.3f}", f"MAx epoch : {maxepoch:.3f}")        
+
     plt.figure(figsize=(12,5))
     plt.title(f"Batch size / Learning rate = {BATCH_SIZE, LEARNING_RATE}")
     plt.subplot(121)
@@ -266,14 +278,14 @@ def evaluate_model(model,test_dl):
         for test_data,test_label_data in test_dl:
             test_data=test_data.unsqueeze(1)    
             val_out = model.forward(test_data)
-            val_outputs.append(val_out)
+            #val_outputs.append(val_out)
             val_loss= criterion(val_out,test_label_data)
             
             targets=test_label_data.numpy()
                         
             _, predictions = torch.max(val_out,dim=1) 
             accuracy = accuracy_score(predictions, targets)
-            test_accuracies.append(accuracy)
+            #test_accuracies.append(accuracy)
             actual.append(predictions) #Creates a list with all the outputs
             f1_score_result=f1_score(test_label_data,predictions,average='weighted')     
             #print("Validation loss :f"F1 score result: {f1_score_result:.3f}")            

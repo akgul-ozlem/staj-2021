@@ -45,13 +45,17 @@ torch.cuda.manual_seed(RS)
 np.random.seed(RS)
 
 #%% read hphyperparameters 
-# file_name = '/home/kaan/Downloads/1-ttc3600.xlsx'
-# page = 'cleaned'
-file_name = 'data/1-ttc3600.xlsx'
-page = 'dnm'
+#file_name = '/home/ozlem/Downloads/1-ttc3600.xlsx'
+#page = 'cleaned'
+#file_name = 'data/1-ttc3600.xlsx'
+#page = 'dnm'
 
-# file_name = '/home/kaan/Downloads/1-ttc4900.xlsx'
-# page = 'sw_lem'
+
+#file_name = '/home/ozlem/Downloads/2-ttc4900.xlsx'
+#page = 'noSW_noLem'
+
+file_name = '/home/ozlem/Downloads/2-ttc4900.xlsx'
+page = 'sw_lem'
 
 language =         'turkish'
 scoring =          'accuracy'    
@@ -59,14 +63,14 @@ useStopwords =     False
 useLemmatize =     False
 
 #%% parameyer
-NO_EPOCHS = 50
+NO_EPOCHS = 10
 LEARNING_RATE = 0.01
 MOMENTUM = 0.9
-BATCH_SIZE =1440 #720
+BATCH_SIZE =64 #720
 WEIGHT_DECAY = 0.01
 DROPOUT1 = 0.5
-DROPOUT2 =0.5
-DROPOUT3 =0.3
+DROPOUT2 =0.7
+HIDDEN_SIZE = 1024
 
 if torch.cuda.is_available():
     device = torch.device("cuda")
@@ -79,7 +83,7 @@ else:
 # %% import data
 data = pd.read_excel(file_name, page)            #, encoding = 'utf-8')
 
-cat_hdr  = 'cat'
+cat_hdr  = 'class'
 data_hdr = 'description'
 test_ratio = 0.2
 
@@ -134,6 +138,8 @@ test_dl = DataLoader(testing_tuples, batch_size =720, shuffle = True)
 
 print(x_train.shape[1])
 
+
+
 #%% training function
 train_losses = []
 test_losses = []
@@ -141,7 +147,7 @@ test_accuracies = []
 val_outputs= []
 f1_score_list = []
 
-model = nn. Sequential(nn.Linear(x_train.shape[1],data[cat_hdr].nunique()),nn.ReLU(),nn.Dropout(0.5),nn.Softmax(dim=1))
+#model = nn. Sequential(nn.Linear(x_train.shape[1],data[cat_hdr].nunique()),nn.ReLU(),nn.Dropout(0.5),nn.Softmax(dim=1))
 criterion = nn.CrossEntropyLoss()            
 
 '''
@@ -178,40 +184,52 @@ model = nn. Sequential(nn.Linear(x_train.shape[1],4096),
 criterion = nn.CrossEntropyLoss()
 
 '''
-'''
-model = nn. Sequential(nn.Linear(x_train.shape[1],1024),
-                       nn.BatchNorm1d(1024),
+
+model = nn. Sequential(nn.Linear(x_train.shape[1],HIDDEN_SIZE),
+                       nn.BatchNorm1d(HIDDEN_SIZE),
                        nn.ReLU(),
                        nn.Dropout(DROPOUT1),                    
 
-                       nn.Linear(1024,data['class'].nunique()),
-                       nn.ReLU(),nn.Dropout(DROPOUT3),
+                       nn.Linear(HIDDEN_SIZE,data['class'].nunique()),
+                       nn.ReLU(),nn.Dropout(DROPOUT2),
                        nn.Softmax(dim=1))
 criterion = nn.CrossEntropyLoss()
-'''
+
+
+
 
 def train_model(model,train_dl,epochs):
     model.train()
-    
+    max = 0
+    maxepoch = 0
     optimizer= optim.SGD(model.parameters(),lr=LEARNING_RATE,momentum=MOMENTUM)
     #optimizer = optim.Adam(model.parameters(),lr = LEARNING_RATE,weight_decay=WEIGHT_DECAY)
     for epoch in range(epochs):
-        optimizer.zero_grad()
+        
 
         for train_data, train_label_data in train_dl: 
             
+            optimizer.zero_grad()
             output = model(train_data)
             loss = criterion(output,train_label_data)
             loss.backward()
             train_loss = loss.item()
-            train_losses.append(train_loss)
+            #train_losses.append(train_loss)
             optimizer.step()
         
             validation_f1_score,val_loss = evaluate_model(model,test_dl)
-            f1_score_list.append(validation_f1_score)
-            test_losses.append(val_loss)
+            #f1_score_list.append(validation_f1_score)
+            #test_losses.append(val_loss)
             print(f"Epoch: {epoch+1}/{epochs}..", f"Training loss: {train_loss:.3f}", f"Validation loss: {val_loss:.3f} " , f"Validation F1 Score: {validation_f1_score:.3f}")
-    
+            #summ = summ + validation_f1_score
+            if validation_f1_score> max :
+                max = validation_f1_score
+                maxepoch = epoch
+            else :
+                max = max
+                maxepoch = epoch
+    #avg = sum / i
+    print(f"Max F1 score: {max:.3f}", f"MAx epoch : {maxepoch:.3f}")        
     plt.figure(figsize=(12,5))
     plt.subplot(121)
     plt.xlabel('epochs')
@@ -229,17 +247,17 @@ def evaluate_model(model,test_dl):
     model.eval()
     actual = []
     for test_data,test_label_data in test_dl:
-            
+        
         val_out = model(test_data)
-        val_outputs.append(val_out)
-        print(val_out.shape)
+        #val_outputs.append(val_out)
+        
         val_loss= criterion(val_out,test_label_data)
-        test_losses.append(val_loss)
+        #test_losses.append(val_loss)
         targets=test_label_data.numpy()
                     
         _, predictions = torch.max(val_out,dim=1) 
         accuracy = accuracy_score(predictions, targets)
-        test_accuracies.append(accuracy)
+        #test_accuracies.append(accuracy)
         actual.append(predictions) #Creates a list with all the outputs
         f1_score_result=f1_score(test_label_data,predictions,average='weighted')     
     return f1_score_result,val_loss
